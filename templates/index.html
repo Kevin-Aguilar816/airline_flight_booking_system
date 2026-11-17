@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Search flights{% endblock %}
+{% block content %}
+<section class="bg-gradient-to-br from-sky-800 to-sky-600 text-white rounded-2xl p-8 shadow">
+  <h1 class="text-3xl font-bold mb-1">Where to next?</h1>
+  <p class="text-sky-100 mb-6">Direct and multi-city routes, ranked by price, speed or connection safety.</p>
+  <form action="/search" method="get" class="grid md:grid-cols-6 gap-3 items-end">
+    <label class="md:col-span-2 text-sm">From
+      <select name="origin" class="mt-1 w-full rounded-lg text-slate-800 p-2.5">
+        {% for a in airports %}<option value="{{ a.code }}" {{ 'selected' if a.code=='CEB' }}>{{ a.city }} ({{ a.code }})</option>{% endfor %}
+      </select></label>
+    <label class="md:col-span-2 text-sm">To
+      <select name="dest" class="mt-1 w-full rounded-lg text-slate-800 p-2.5">
+        {% for a in airports %}<option value="{{ a.code }}" {{ 'selected' if a.code=='DVO' }}>{{ a.city }} ({{ a.code }})</option>{% endfor %}
+      </select></label>
+    <label class="text-sm">Date
+      <input type="date" name="day" value="{{ tomorrow }}" min="{{ tomorrow }}" class="mt-1 w-full rounded-lg text-slate-800 p-2.5"></label>
+    <label class="text-sm">Max stops
+      <select name="max_stops" class="mt-1 w-full rounded-lg text-slate-800 p-2.5">
+        <option value="0">Direct only</option><option value="1" selected>Up to 1</option><option value="2">Up to 2</option>
+      </select></label>
+    <button class="md:col-span-6 bg-amber-400 hover:bg-amber-300 text-slate-900 font-semibold rounded-lg py-3">Search flights</button>
+  </form>
+</section>
+
+<section class="grid md:grid-cols-4 gap-4 mt-8 text-sm">
+  <div class="bg-white rounded-xl p-5 shadow-sm"><div class="font-semibold mb-1">Route optimizer</div>Dijkstra over a time-expanded flight graph finds the cheapest, fastest and safest multi-stop trips.</div>
+  <div class="bg-white rounded-xl p-5 shadow-sm"><div class="font-semibold mb-1">Buy Now / Wait</div>A random-forest model estimates whether a fare is likely to drop, with a confidence score.</div>
+  <div class="bg-white rounded-xl p-5 shadow-sm"><div class="font-semibold mb-1">Seat locking</div>Seats are held for 10 minutes using DB unique constraints — no double bookings, even under races.</div>
+  <div class="bg-white rounded-xl p-5 shadow-sm"><div class="font-semibold mb-1">Layover risk</div>Every connection gets a Low / Medium / High missed-connection score.</div>
+</section>
+
+<p class="text-sm text-slate-500 mt-6">Demo logins — traveler: <code>demo@skybook.test / demo123</code> · admin: <code>admin@skybook.test / admin123</code></p>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Select seats · {{ f.number }}{% endblock %}
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm p-5 mb-6 flex flex-wrap items-center gap-6">
+  <div>
+    <div class="text-xs text-slate-500">{{ f.number }} · {{ f.aircraft.model }}</div>
+    <div class="text-xl font-bold">{{ f.origin_airport.city }} ({{ f.origin }}) → {{ f.dest_airport.city }} ({{ f.dest }})</div>
+    <div class="text-sm text-slate-600">{{ f.depart|dt }} → {{ f.arrive|tm }} · {{ f.minutes|hm }}</div>
+  </div>
+  <div class="ml-auto text-sm rounded-lg px-4 py-2 {{ 'bg-emerald-50 text-emerald-800' if pred.advice=='Buy Now' else 'bg-amber-50 text-amber-800' }}">
+    <b>AI fare advice: {{ pred.advice }}</b> · {{ pred.confidence }}% confidence
+  </div>
+</div>
+
+{% include "_seatpanel.html" %}
+
+<script>
+  // live countdown for the user's held seats
+  setInterval(() => {
+    document.querySelectorAll('[data-expires]').forEach(el => {
+      const left = Math.max(0, Math.floor((new Date(el.dataset.expires) - Date.now()) / 1000));
+      el.textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0');
+    });
+  }, 1000);
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Pay your share{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto">
+  <div class="bg-white rounded-xl shadow p-6">
+    <div class="text-xs text-slate-500">Booking {{ b.ref }} · {{ b.flight.number }} {{ b.flight.origin }} → {{ b.flight.dest }}</div>
+    <h1 class="text-xl font-bold mt-1">Pay your share</h1>
+    <div class="text-3xl font-bold my-3">{{ p.amount|peso }} <span class="text-sm font-normal text-slate-500">({{ p.label }})</span></div>
+
+    {% if p.status == 'paid' %}
+      <div class="rounded-lg bg-emerald-50 text-emerald-800 p-3 text-sm">This share has already been paid.</div>
+    {% elif b.status != 'pending' %}
+      <div class="rounded-lg bg-rose-50 text-rose-800 p-3 text-sm">This booking is {{ b.status }}; the link is no longer valid.</div>
+    {% else %}
+      {% if expires %}<div class="text-sm text-amber-700 mb-3">Seats held for <b data-expires="{{ expires|iso_utc }}">--:--</b></div>{% endif %}
+      {% if error %}<div class="mb-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 p-3 text-sm">{{ error }}</div>{% endif %}
+      <form method="post" class="space-y-3 text-sm">
+        <label class="block">Your name<input name="payer_name" value="{{ user.name if user else '' }}" required class="mt-1 w-full border rounded-lg p-2.5"></label>
+        <div class="flex gap-4">
+          <label class="flex items-center gap-2"><input type="radio" name="method" value="card" checked onchange="document.getElementById('cardbox').style.display='block'"> Card</label>
+          <label class="flex items-center gap-2"><input type="radio" name="method" value="gcash" onchange="document.getElementById('cardbox').style.display='none'"> GCash (sandbox)</label>
+        </div>
+        <div id="cardbox">
+          <label class="block">Card number<input name="card" inputmode="numeric" autocomplete="off" placeholder="4242 4242 4242 4242" class="mt-1 w-full border rounded-lg p-2.5"></label>
+          <p class="text-xs text-slate-400 mt-1">Test cards: 4242 4242 4242 4242 approves · 4000 0000 0000 0002 declines · 4000 0000 0000 9995 insufficient funds. Any expiry/CVC.</p>
+        </div>
+        <button class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 font-semibold">Pay {{ p.amount|peso }} (sandbox)</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+<script>
+  setInterval(() => document.querySelectorAll('[data-expires]').forEach(el => {
+    const s = Math.max(0, Math.floor((new Date(el.dataset.expires) - Date.now()) / 1000));
+    el.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }), 1000);
+</script>
+{% endblock %}

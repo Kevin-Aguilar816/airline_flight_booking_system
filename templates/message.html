@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto bg-white rounded-xl shadow p-8 text-center">
+  <h1 class="text-xl font-bold mb-2">{{ title }}</h1>
+  <p class="text-slate-600 mb-6">{{ text }}</p>
+  <a href="{{ link[0] }}" class="inline-block bg-sky-700 text-white px-5 py-2 rounded-lg hover:bg-sky-800">{{ link[1] }}</a>
+</div>
+{% endblock %}

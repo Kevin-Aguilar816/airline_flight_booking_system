@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ o.code }} → {{ d.code }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+  <div>
+    <h1 class="text-2xl font-bold">{{ o.city }} → {{ d.city }}</h1>
+    <p class="text-slate-500 text-sm">{{ day|day }} · {{ its|length }} itinerar{{ 'y' if its|length==1 else 'ies' }} found (up to {{ max_stops }} stop{{ '' if max_stops==1 else 's' }})</p>
+  </div>
+  <div class="flex gap-2 text-sm">
+    {% for key,label in [('price','Cheapest first'),('duration','Fastest first'),('risk','Safest first')] %}
+      <a href="/search?{{ query }}&max_stops={{ max_stops }}&sort={{ key }}"
+         class="px-3 py-1.5 rounded-full border {{ 'bg-sky-700 text-white border-sky-700' if sort==key else 'bg-white hover:bg-slate-100' }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if not its %}
+  <div class="bg-white rounded-xl p-8 text-center shadow-sm">No upcoming flights match. Try another date or allow more stops.</div>
+{% endif %}
+
+<div class="space-y-4">
+{% for it in its %}
+  <article class="bg-white rounded-xl shadow-sm border border-slate-100 p-5 grid md:grid-cols-[1fr_auto] gap-4">
+    <div>
+      <div class="flex flex-wrap gap-2 mb-3">
+        {% for t in it.tags %}<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">{{ t }}</span>{% endfor %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100">{{ 'Direct' if it.stops==0 else it.stops ~ ' stop' ~ ('s' if it.stops>1 else '') }}</span>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100">{{ it.minutes|hm }} total</span>
+        {% if it.seats_left <= 8 %}<span class="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Only ~{{ it.seats_left }} seats left</span>{% endif %}
+      </div>
+      {% for leg in it.legs %}
+        <div class="flex items-center gap-4 py-1">
+          <div class="w-24 text-xs text-slate-500">{{ leg.number }}<br>{{ leg.aircraft.model }}</div>
+          <div class="text-lg font-semibold">{{ leg.depart|tm }} <span class="text-xs font-normal text-slate-500">{{ leg.origin }}</span></div>
+          <div class="text-slate-400 text-xs">——— {{ leg.minutes|hm }} ———▶</div>
+          <div class="text-lg font-semibold">{{ leg.arrive|tm }} <span class="text-xs font-normal text-slate-500">{{ leg.dest }}</span></div>
+          <a href="/flights/{{ leg.id }}" class="ml-auto text-sm text-sky-700 hover:underline whitespace-nowrap">Select seats →</a>
+        </div>
+        {% if not loop.last %}
+          {% set lv = it.layovers[loop.index0] %}
+          <div class="ml-24 my-1 flex flex-wrap items-center gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-1.5" title="Risk points — {% for k,v in lv.factors.items() %}{{ k }}: {{ v }}{{ ', ' if not loop.last }}{% endfor %}">
+            {{ lv.minutes|hm }} layover in {{ lv.airport }} · {{ lv.weather }} · ~{{ lv.expected_delay }} min typical inbound delay
+            <span class="font-semibold px-2 py-0.5 rounded-full
+              {{ 'bg-emerald-100 text-emerald-800' if lv.level=='Low' else 'bg-amber-100 text-amber-800' if lv.level=='Medium' else 'bg-rose-100 text-rose-800' }}">
+              Missed-connection risk: {{ lv.level }} ({{ lv.score }})</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="text-right flex flex-col justify-between min-w-[170px]">
+      <div>
+        <div class="text-2xl font-bold">{{ it.price|peso }}</div>
+        <div class="text-xs text-slate-500">economy, per person</div>
+      </div>
+      <div class="mt-3 text-sm rounded-lg px-3 py-2 {{ 'bg-emerald-50 text-emerald-800' if it.advice.advice=='Buy Now' else 'bg-amber-50 text-amber-800' }}">
+        <b>{{ 'Buy now' if it.advice.advice=='Buy Now' else 'Wait' }}</b><br>
+        <span class="text-xs">{{ it.advice.confidence }}% confidence</span>
+      </div>
+    </div>
+  </article>
+{% endfor %}
+</div>
+{% if its and its|selectattr('stops','gt',0)|list %}
+<p class="text-xs text-slate-500 mt-4">Connecting itineraries are booked leg by leg — choose seats on each flight. Layover risk uses simulated weather/delay data.</p>
+{% endif %}
+{% endblock %}

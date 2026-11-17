@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Booking {{ b.ref }}{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-center gap-3 mb-6">
+  <h1 class="text-2xl font-bold">Booking {{ b.ref }}</h1>
+  <span class="px-3 py-1 rounded-full text-sm font-semibold
+    {{ 'bg-emerald-100 text-emerald-800' if b.status=='confirmed' else 'bg-amber-100 text-amber-800' if b.status=='pending' else 'bg-rose-100 text-rose-800' }}">{{ b.status|upper }}</span>
+  {% if b.status == 'confirmed' %}<a href="/bookings/{{ b.ref }}/ticket.pdf" target="_blank" class="ml-auto bg-sky-700 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-sky-800">Download e-ticket (PDF)</a>{% endif %}
+</div>
+
+<div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+  <div class="text-xs text-slate-500">{{ b.flight.number }} · {{ b.flight.aircraft.model }}</div>
+  <div class="text-lg font-bold">{{ b.flight.origin_airport.city }} → {{ b.flight.dest_airport.city }}</div>
+  <div class="text-sm text-slate-600">{{ b.flight.depart|dt }} → {{ b.flight.arrive|tm }}</div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold mb-3">Passengers</h2>
+    <ul class="divide-y text-sm">
+      {% if b.status == 'confirmed' %}
+        {% for p in b.passengers %}<li class="py-2 flex justify-between"><span>{{ p.name }} · seat <b>{{ p.seat_no }}</b></span><span>{{ p.price|peso }}</span></li>{% endfor %}
+      {% else %}
+        {% for l in locks %}<li class="py-2 flex justify-between"><span>{{ l.passenger_name or '—' }} · seat <b>{{ l.seat_no }}</b></span><span>{{ l.price|peso }}</span></li>{% endfor %}
+      {% endif %}
+    </ul>
+    <div class="flex justify-between font-bold mt-3 pt-3 border-t"><span>Total</span><span>{{ b.total_amount|peso }}</span></div>
+    {% if b.status == 'pending' and expires %}<div class="text-sm text-amber-700 mt-3">Seats held for <b data-expires="{{ expires|iso_utc }}">--:--</b></div>{% endif %}
+    {% if b.status == 'expired' %}<p class="text-sm text-rose-700 mt-3">The hold expired before everyone paid. Any payments were refunded (sandbox).</p>{% endif %}
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold mb-3">Payments</h2>
+    {% if not b.payments %}
+      <p class="text-sm text-slate-500">No payment links yet. <a class="text-sky-700 underline" href="/bookings/{{ b.ref }}/checkout">Continue to checkout</a>.</p>
+    {% endif %}
+    <ul class="space-y-3 text-sm">
+      {% for p in b.payments %}
+        <li class="border rounded-lg p-3">
+          <div class="flex justify-between"><b>{{ p.label }}</b><span>{{ p.amount|peso }}</span></div>
+          {% if p.status == 'paid' %}
+            <div class="text-emerald-700">Paid by {{ p.payer_name }} ({{ p.method }}{{ ' ••••' ~ p.last4 if p.method=='card' }})</div>
+          {% elif p.status == 'refunded' %}
+            <div class="text-rose-700">Refunded</div>
+          {% else %}
+            <div class="text-amber-700 mb-1">Awaiting payment</div>
+            <div class="flex gap-2">
+              <input readonly value="{{ base }}/pay/{{ p.token }}" class="flex-1 border rounded px-2 py-1 text-xs bg-slate-50" onclick="this.select()">
+              <a class="bg-sky-700 text-white rounded px-3 py-1 text-xs" href="/pay/{{ p.token }}">Pay</a>
+            </div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    {% if b.status == 'pending' and b.payments %}<p class="text-xs text-slate-400 mt-3">Send each link to a group member. The page refreshes automatically.</p>{% endif %}
+  </div>
+</div>
+{% if b.status == 'pending' and b.payments %}<div hx-get="/bookings/{{ b.ref }}" hx-trigger="every 5s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>{% endif %}
+<script>
+  setInterval(() => document.querySelectorAll('[data-expires]').forEach(el => {
+    const s = Math.max(0, Math.floor((new Date(el.dataset.expires) - Date.now()) / 1000));
+    el.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }), 1000);
+</script>
+{% endblock %}

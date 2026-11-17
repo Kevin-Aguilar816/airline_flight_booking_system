@@ -1,0 +1,67 @@
+<div id="seatpanel" hx-get="/flights/{{ f.id }}/panel" hx-trigger="every 6s" hx-swap="outerHTML">
+  {% if msg %}
+    <div class="mb-4 rounded-lg px-4 py-2 text-sm {{ 'bg-emerald-50 text-emerald-800' if ok else 'bg-rose-50 text-rose-800 border border-rose-200' }}">{{ msg }}</div>
+  {% endif %}
+  <div class="grid lg:grid-cols-[auto_1fr] gap-8">
+    <!-- seat map -->
+    <div class="bg-white rounded-xl shadow-sm p-6 justify-self-start">
+      <div class="flex gap-4 text-xs mb-4 flex-wrap">
+        <span class="flex items-center gap-1"><i class="w-4 h-4 rounded bg-white border-2 border-sky-400 inline-block"></i> Available</span>
+        <span class="flex items-center gap-1"><i class="w-4 h-4 rounded bg-sky-600 inline-block"></i> Yours</span>
+        <span class="flex items-center gap-1"><i class="w-4 h-4 rounded bg-amber-300 inline-block"></i> Held by someone</span>
+        <span class="flex items-center gap-1"><i class="w-4 h-4 rounded bg-slate-300 inline-block"></i> Taken</span>
+      </div>
+      <div class="flex gap-1 mb-1 text-xs text-slate-400 justify-center">
+        <span class="w-7"></span>
+        {% for l in sm.letters %}<span class="w-9 text-center">{{ l }}</span>{% if loop.index == sm.aisle_after %}<span class="w-6"></span>{% endif %}{% endfor %}
+      </div>
+      {% for r in sm.rows %}
+        <div class="flex gap-1 mb-1 items-center justify-center {{ 'mt-3' if not loop.first and r.seats[0].cls != sm.rows[loop.index0-1].seats[0].cls }}">
+          <span class="w-7 text-xs text-slate-400 text-right pr-1">{{ r.row }}</span>
+          {% for s in r.seats %}
+            {% if s.state == 'free' %}
+              <button hx-post="/flights/{{ f.id }}/seats/{{ s.id }}/hold" hx-target="#seatpanel" hx-swap="outerHTML"
+                      title="{{ s.id }} · {{ s.cls }} · {{ s.price|peso }}"
+                      class="w-9 h-9 rounded text-[11px] font-medium bg-white border-2 {{ 'border-violet-400' if s.cls=='business' else 'border-emerald-400' if s.cls=='legroom' else 'border-sky-400' }} hover:bg-sky-50">{{ s.id }}</button>
+            {% elif s.state == 'mine' %}
+              <button hx-post="/flights/{{ f.id }}/seats/{{ s.id }}/release" hx-target="#seatpanel" hx-swap="outerHTML"
+                      title="Click to release {{ s.id }}" class="w-9 h-9 rounded text-[11px] font-semibold bg-sky-600 text-white">{{ s.id }}</button>
+            {% elif s.state == 'locked' %}
+              <span title="Held by another traveler" class="w-9 h-9 rounded text-[11px] bg-amber-300 flex items-center justify-center text-amber-900">{{ s.id }}</span>
+            {% else %}
+              <span title="Taken" class="w-9 h-9 rounded text-[11px] bg-slate-300 flex items-center justify-center text-slate-500">X</span>
+            {% endif %}
+            {% if loop.index == sm.aisle_after %}<span class="w-6"></span>{% endif %}
+          {% endfor %}
+        </div>
+      {% endfor %}
+      <p class="text-xs text-slate-400 mt-4 text-center">Violet = business · Green = extra legroom · Blue = economy</p>
+    </div>
+
+    <!-- summary -->
+    <div class="space-y-4">
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h2 class="font-semibold mb-3">Your selection</h2>
+        {% if sm.mine %}
+          <ul class="divide-y text-sm">
+            {% for l in sm.mine %}<li class="py-2 flex justify-between"><span>Seat <b>{{ l.seat_no }}</b></span><span>{{ l.price|peso }}</span></li>{% endfor %}
+          </ul>
+          <div class="flex justify-between font-bold text-lg mt-3 pt-3 border-t"><span>Total</span><span>{{ sm.total|peso }}</span></div>
+          <div class="text-sm text-amber-700 mt-2">Held for <b data-expires="{{ sm.expires|iso_utc }}">--:--</b> — complete checkout before it expires.</div>
+          <a href="/bookings/{{ sm.booking.ref }}/checkout" class="mt-4 block text-center bg-sky-700 hover:bg-sky-800 text-white rounded-lg py-2.5 font-semibold">Continue to checkout</a>
+        {% else %}
+          <p class="text-sm text-slate-500">Click a blue seat to hold it for you. {% if not user %}You'll be asked to log in first.{% endif %}</p>
+        {% endif %}
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 text-sm text-slate-600 grid grid-cols-3 gap-2 text-center">
+        <div><div class="text-xl font-bold text-slate-800">{{ sm.free }}</div>available</div>
+        <div><div class="text-xl font-bold text-amber-600">{{ sm.held }}</div>held now</div>
+        <div><div class="text-xl font-bold text-slate-500">{{ sm.taken }}</div>booked</div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 text-sm">
+        Current economy fare <b>{{ sm.fare|peso }}</b> · load factor {{ (sm.load*100)|round|int }}%.
+        <span class="text-slate-400">Seat prices are frozen for you while held.</span>
+      </div>
+    </div>
+  </div>
+</div>

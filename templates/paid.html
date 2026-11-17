@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Payment received{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-xl shadow p-8 text-center">
+  <h1 class="text-xl font-bold mb-1">Payment received · {{ p.amount|peso }}</h1>
+  <p class="text-sm text-slate-500 mb-4">Reference {{ p.provider_ref }}</p>
+  {% if status == 'confirmed' %}
+    <p class="mb-4">Everyone has paid — booking <b>{{ b.ref }}</b> is <b class="text-emerald-700">confirmed</b>.</p>
+    {% if user %}<a href="/bookings/{{ b.ref }}/ticket.pdf" class="inline-block bg-sky-700 text-white px-5 py-2 rounded-lg">Download e-ticket</a>{% endif %}
+  {% elif status == 'expired' %}
+    <p class="mb-4 text-rose-700">The seat hold expired before the group finished paying. Payments were refunded (sandbox).</p>
+  {% else %}
+    <p class="mb-4">Thanks! Waiting for the other group members to pay their shares.</p>
+  {% endif %}
+  {% if user %}<a href="/bookings/{{ b.ref }}" class="block mt-4 text-sm text-sky-700 underline">View booking</a>{% endif %}
+</div>
+{% endblock %}

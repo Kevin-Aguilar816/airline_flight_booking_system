@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Checkout{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Checkout · {{ b.flight.number }}</h1>
+<p class="text-slate-500 mb-6">{{ b.flight.origin }} → {{ b.flight.dest }} · {{ b.flight.depart|dt }}</p>
+
+{% if error %}<div class="mb-4 rounded-lg px-4 py-2 bg-rose-50 text-rose-800 border border-rose-200 text-sm">{{ error }}</div>{% endif %}
+
+<form method="post" class="grid md:grid-cols-[1fr_320px] gap-6">
+  <div class="bg-white rounded-xl shadow-sm p-6 space-y-4">
+    <h2 class="font-semibold">Passenger details</h2>
+    {% for l in locks %}
+      <label class="block text-sm">Seat <b>{{ l.seat_no }}</b> · {{ l.price|peso }}
+        <input name="name_{{ l.seat_no }}" value="{{ l.passenger_name }}" required placeholder="Full name as on ID"
+               class="mt-1 w-full border rounded-lg p-2.5">
+      </label>
+    {% endfor %}
+  </div>
+  <div class="space-y-4">
+    <div class="bg-white rounded-xl shadow-sm p-6">
+      <h2 class="font-semibold mb-2">Split payment</h2>
+      <p class="text-xs text-slate-500 mb-3">Travelling as a group? Each member gets their own checkout link and pays their share. Seats stay held until everyone has paid (or the timer ends).</p>
+      <label class="text-sm">Number of payers
+        <select name="payers" class="mt-1 w-full border rounded-lg p-2.5">
+          {% for n in range(1, locks|length + 1) %}<option value="{{ n }}">{{ n }}{{ ' (I pay for everyone)' if n==1 }}</option>{% endfor %}
+        </select></label>
+      <div class="flex justify-between font-bold text-lg mt-4 pt-3 border-t"><span>Total</span><span>{{ total|peso }}</span></div>
+      <div class="text-sm text-amber-700 mt-2">Hold expires in <b data-expires="{{ expires|iso_utc }}">--:--</b></div>
+      <button class="mt-4 w-full bg-sky-700 hover:bg-sky-800 text-white rounded-lg py-2.5 font-semibold">Generate payment links</button>
+    </div>
+  </div>
+</form>
+<script>
+  setInterval(() => document.querySelectorAll('[data-expires]').forEach(el => {
+    const s = Math.max(0, Math.floor((new Date(el.dataset.expires) - Date.now()) / 1000));
+    el.textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }), 1000);
+</script>
+{% endblock %}

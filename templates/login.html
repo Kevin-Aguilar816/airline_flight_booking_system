@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Create account' if mode=='register' else 'Log in' }}{% endblock %}
+{% block content %}
+<div class="max-w-sm mx-auto bg-white rounded-xl shadow p-8">
+  <h1 class="text-xl font-bold mb-4">{{ 'Create your account' if mode=='register' else 'Log in' }}</h1>
+  {% if error %}<div class="mb-3 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 p-3 text-sm">{{ error }}</div>{% endif %}
+  <form method="post" action="/{{ mode }}" class="space-y-3 text-sm">
+    <input type="hidden" name="next" value="{{ next }}">
+    {% if mode == 'register' %}<label class="block">Full name<input name="name" required class="mt-1 w-full border rounded-lg p-2.5"></label>{% endif %}
+    <label class="block">Email<input name="email" type="email" required class="mt-1 w-full border rounded-lg p-2.5"></label>
+    <label class="block">Password<input name="password" type="password" required class="mt-1 w-full border rounded-lg p-2.5"></label>
+    <button class="w-full bg-sky-700 hover:bg-sky-800 text-white rounded-lg py-2.5 font-semibold">{{ 'Register' if mode=='register' else 'Log in' }}</button>
+  </form>
+  <p class="text-xs text-slate-500 mt-4">
+    {% if mode == 'register' %}Have an account? <a class="underline" href="/login">Log in</a>
+    {% else %}New here? <a class="underline" href="/register">Create an account</a><br>Demo: demo@skybook.test / demo123{% endif %}
+  </p>
+</div>
+{% endblock %}

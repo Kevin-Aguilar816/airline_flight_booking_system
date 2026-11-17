@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}My bookings{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">My bookings</h1>
+{% if pending %}
+  <h2 class="font-semibold mb-2">In progress</h2>
+  <div class="space-y-2 mb-8">
+    {% for b in pending %}
+      <a href="/bookings/{{ b.ref }}" class="block bg-amber-50 border border-amber-200 rounded-xl p-4 hover:bg-amber-100 text-sm">
+        <b>{{ b.ref }}</b> · {{ b.flight.number }} {{ b.flight.origin }} → {{ b.flight.dest }} · {{ b.flight.depart|dt }} — seats on hold</a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% if not rows %}<p class="text-slate-500">No bookings yet. <a class="text-sky-700 underline" href="/">Search flights</a>.</p>{% endif %}
+<div class="space-y-2">
+  {% for b in rows %}
+    <a href="/bookings/{{ b.ref }}" class="flex flex-wrap items-center gap-3 bg-white rounded-xl shadow-sm p-4 hover:shadow text-sm">
+      <b>{{ b.ref }}</b>
+      <span>{{ b.flight.number }} · {{ b.flight.origin }} → {{ b.flight.dest }}</span>
+      <span class="text-slate-500">{{ b.flight.depart|dt }}</span>
+      <span class="ml-auto font-semibold">{{ b.total_amount|peso }}</span>
+      <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-emerald-100 text-emerald-800' if b.status=='confirmed' else 'bg-rose-100 text-rose-800' }}">{{ b.status }}</span>
+    </a>
+  {% endfor %}
+</div>
+{% endblock %}

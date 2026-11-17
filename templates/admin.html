@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Admin analytics{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">Airline analytics</h1>
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+  {% for label, val in [('Revenue', kpis.revenue|peso), ('Bookings', '{:,}'.format(kpis.bookings)), ('Passengers', '{:,}'.format(kpis.pax)),
+                        ('Load factor', kpis.load ~ '%'), ('Avg fare / pax', kpis.avg|peso)] %}
+    <div class="bg-white rounded-xl shadow-sm p-4"><div class="text-xs text-slate-500">{{ label }}</div><div class="text-2xl font-bold">{{ val }}</div></div>
+  {% endfor %}
+</div>
+<div class="grid lg:grid-cols-3 gap-6">
+  <div class="bg-white rounded-xl shadow-sm p-5 lg:col-span-3"><h2 class="font-semibold mb-3">Revenue — last 14 days (₱)</h2><div class="h-64"><canvas id="rev"></canvas></div></div>
+  <div class="bg-white rounded-xl shadow-sm p-5 lg:col-span-2"><h2 class="font-semibold mb-3">Most popular routes (passengers)</h2><div class="h-64"><canvas id="pop"></canvas></div></div>
+  <div class="bg-white rounded-xl shadow-sm p-5"><h2 class="font-semibold mb-3">Load factor by route (%)</h2><div class="h-64"><canvas id="lf"></canvas></div></div>
+</div>
+<p class="text-xs text-slate-400 mt-6">Fare predictor: random forest on {{ '{:,}'.format(ml.samples) if ml.samples else 'a cached' }} {{ ml.source }} samples{% if ml.accuracy %}, hold-out accuracy {{ (ml.accuracy*100)|round(1) }}%{% endif %}. Replace with historical fares for production.</p>
+<script>
+  const C = {{ charts|safe }};
+  const base = {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}};
+  new Chart(rev, {type: 'line', data: {labels: C.rev.labels, datasets: [{data: C.rev.data, borderColor: '#0369a1', backgroundColor: 'rgba(3,105,161,.12)', fill: true, tension: .3}]}, options: base});
+  new Chart(pop, {type: 'bar', data: {labels: C.pop.labels, datasets: [{data: C.pop.data, backgroundColor: '#0ea5e9'}]}, options: base});
+  new Chart(lf, {type: 'bar', data: {labels: C.lf.labels, datasets: [{data: C.lf.data, backgroundColor: '#f59e0b'}]}, options: {...base, indexAxis: 'y'}});
+</script>
+{% endblock %}
