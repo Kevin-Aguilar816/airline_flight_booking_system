@@ -16,7 +16,7 @@ docker compose up --build              # http://localhost:8000
 # or: DATABASE_URL=postgresql://user:pass@host/db uvicorn app.main:app
 ```
 
-First start creates the schema and seeds ~2,500 flights (12 airports), demo bookings and users:
+First start creates the schema and seeds ~3,800 flights (12 airports), demo bookings and users:
 
 | Role      | Login                    |
 |-----------|--------------------------|
@@ -45,8 +45,30 @@ Sandbox cards: `4242 4242 4242 4242` approves · `4000 0000 0000 0002` declines 
 
 **4. Layover risk engine (`routing.py::layover_risk`)** — score = buffer after expected inbound delay + airport size + weather + delay history → Low / Medium / High. Weather and delays are **simulated deterministically** (hash of airport/flight/date); plug a real weather/flight-status API into `simulated_weather` / `expected_inbound_delay`.
 
+## Data-structure features (course topics)
+
+| Feature | Structure / algorithm | Where |
+|---|---|---|
+| Priority booking requests: VIP > Business > Economy, ties by arrival | Max-heap | `dsa.MaxHeap`, `desk.queued_heap`, `/desk` |
+| Flight waitlist, strict FIFO, auto-offer when seats free up | Deque | `dsa.Deque`, `desk.process_waitlist` |
+| Undo last booking (cancel, refund, promote waitlist) | Stack (LIFO) | `dsa.Stack`, `desk.undo_last_booking` |
+| Fewest stops route vs cheapest/fastest route | BFS and Dijkstra | `routing.bfs_fewest_stops` |
+| Find flight by number | Binary search tree | `dsa.BST`, `/find` |
+| Instant passenger lookup by ticket key | Hash table (chaining) | `dsa.HashTable`, `/desk/scan` |
+| Manifest where cancelled bookings detach cleanly | Singly linked list | `dsa.SinglyLinkedList`, `/desk/flights/<id>/manifest` |
+| Sort search results by price, duration, risk, stops | QuickSort | `dsa.quicksort` |
+
+Demo: log in as admin, `/desk` -> "Fill flight (demo)" with a flight number, then as a traveler join the waitlist; as admin cancel a booking from the manifest or press "Undo last booking" and watch the line move. Existing databases upgrade automatically (a new table is created at start-up).
+
 ## Known limits (be upfront about these)
 - Payments are sandbox only; `payments.py` defines the gateway interface where a Stripe/PayMongo adapter would go (not implemented).
 - Connecting itineraries are booked leg by leg (one booking per flight), not as a single PNR.
 - Weather/delay data and the ML training set are synthetic.
 - Set a real `SECRET_KEY` and change the seeded admin password before any public deployment.
+
+## Deploy (GitHub + Render)
+GitHub Pages cannot run this app (it needs a Python server and a database). Push the code to GitHub, then connect the repo to a host:
+1. `git init && git add . && git commit -m "Initial commit"` then create an empty GitHub repo and `git push`.
+2. On render.com: New → Blueprint → select the repo. `render.yaml` creates the web service and a PostgreSQL database.
+3. Enter an `ADMIN_PASSWORD` when asked. The first boot creates the tables and seeds demo data.
+Remove or change the seeded `demo@skybook.test` account before sharing the URL widely.

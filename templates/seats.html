@@ -14,6 +14,32 @@
 
 {% include "_seatpanel.html" %}
 
+<section class="mt-8 grid md:grid-cols-2 gap-6">
+  <form method="post" action="/flights/{{ f.id }}/request" class="bg-white rounded-xl shadow-sm p-5 text-sm space-y-3">
+    <h2 class="font-semibold text-base">Ask the booking desk (priority queue)</h2>
+    <p class="text-slate-500">Requests are served VIP first, then Business, then Economy. Within a tier, the earlier request goes first. An agent allocates seats and holds them for you.</p>
+    <div class="flex gap-3 items-end">
+      <label>Tier<select name="tier" class="block border rounded px-2 py-1.5">{% for t in tiers %}<option>{{ t }}</option>{% endfor %}</select></label>
+      <label>Seats<input type="number" name="seats" value="1" min="1" max="9" class="block border rounded px-2 py-1.5 w-20"></label>
+      <button class="bg-sky-700 hover:bg-sky-800 text-white rounded-lg px-4 py-2 font-semibold">Send request</button>
+    </div>
+    {% if not user %}<p class="text-xs text-slate-400">You will be asked to log in first.</p>{% endif %}
+  </form>
+  <form method="post" action="/flights/{{ f.id }}/waitlist" class="bg-white rounded-xl shadow-sm p-5 text-sm space-y-3">
+    <h2 class="font-semibold text-base">Waitlist (first in, first out)</h2>
+    {% if full %}
+      <p class="text-rose-700">This flight is full. {{ waiting }} traveler{{ '' if waiting==1 else 's' }} already waiting. Join the back of the line: when a booking is cancelled, the person at the front is offered the seats first.</p>
+      <div class="flex gap-3 items-end">
+        <label>Tier<select name="tier" class="block border rounded px-2 py-1.5">{% for t in tiers %}<option>{{ t }}</option>{% endfor %}</select></label>
+        <label>Seats<input type="number" name="seats" value="1" min="1" max="9" class="block border rounded px-2 py-1.5 w-20"></label>
+        <button class="bg-slate-800 hover:bg-slate-900 text-white rounded-lg px-4 py-2 font-semibold">Join waitlist</button>
+      </div>
+    {% else %}
+      <p class="text-slate-500">Seats are still available, so there is no waitlist yet. It opens when the flight sells out ({{ waiting }} waiting now).</p>
+    {% endif %}
+  </form>
+</section>
+
 <script>
   // live countdown for the user's held seats
   setInterval(() => {

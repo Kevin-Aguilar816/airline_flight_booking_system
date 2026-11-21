@@ -19,7 +19,7 @@
       <span>{{ b.flight.number }} · {{ b.flight.origin }} → {{ b.flight.dest }}</span>
       <span class="text-slate-500">{{ b.flight.depart|dt }}</span>
       <span class="ml-auto font-semibold">{{ b.total_amount|peso }}</span>
-      <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-emerald-100 text-emerald-800' if b.status=='confirmed' else 'bg-rose-100 text-rose-800' }}">{{ b.status }}</span>
+      <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-emerald-100 text-emerald-800' if b.status=='confirmed' else 'bg-slate-200 text-slate-700' if b.status=='cancelled' else 'bg-rose-100 text-rose-800' }}">{{ b.status }}</span>
     </a>
   {% endfor %}
 </div>

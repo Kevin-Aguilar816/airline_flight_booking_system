@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Manifest {{ f.number }}{% endblock %}
+{% block content %}
+<a href="/desk" class="text-sm text-sky-700 underline">Back to desk</a>
+<h1 class="text-2xl font-bold mt-2">Manifest · {{ f.number }} {{ f.origin }} → {{ f.dest }}</h1>
+<p class="text-sm text-slate-500 mb-5">Singly linked list of confirmed bookings. Cancelling one detaches its node: the node before it is re-linked to the node after it, so the chain stays intact. {{ waiting }} on the waitlist.</p>
+{% if not chain %}<p class="text-slate-500">No confirmed bookings on this flight.</p>{% endif %}
+<div class="flex flex-wrap items-stretch gap-2">
+  <span class="self-center text-xs font-semibold text-slate-500">HEAD →</span>
+  {% for n in chain %}
+    <div class="bg-white rounded-xl shadow-sm p-3 text-sm w-48">
+      <b>{{ n.ref }}</b><div class="text-slate-600">{{ n.name }}</div>
+      <div class="text-xs text-slate-500">{{ n.seats|length }} seat{{ '' if n.seats|length==1 else 's' }}: {{ (n.seats[:6]|join(', ')) }}{{ '...' if n.seats|length>6 }}</div>
+      <div class="text-xs mb-2">{{ n.total|peso }}</div>
+      <form method="post" action="/desk/flights/{{ f.id }}/manifest/{{ n.id }}/cancel"><button class="text-xs border rounded px-2 py-1 hover:bg-rose-50 text-rose-700">Cancel and detach</button></form>
+    </div>
+    <span class="self-center text-slate-400">→</span>
+  {% endfor %}
+  <span class="self-center text-xs font-semibold text-slate-500">END</span>
+</div>
+{% endblock %}

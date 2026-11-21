@@ -4,10 +4,11 @@
 <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
   <div>
     <h1 class="text-2xl font-bold">{{ o.city }} → {{ d.city }}</h1>
-    <p class="text-slate-500 text-sm">{{ day|day }} · {{ its|length }} itinerar{{ 'y' if its|length==1 else 'ies' }} found (up to {{ max_stops }} stop{{ '' if max_stops==1 else 's' }})</p>
+    <p class="text-slate-500 text-sm">{{ day|day }} · {{ its|length }} itinerar{{ 'y' if its|length==1 else 'ies' }} found (up to {{ max_stops }} stop{{ '' if max_stops==1 else 's' }})
+      · sorted with our own QuickSort ({{ sort_comparisons }} comparisons)</p>
   </div>
   <div class="flex gap-2 text-sm">
-    {% for key,label in [('price','Cheapest first'),('duration','Fastest first'),('risk','Safest first')] %}
+    {% for key,label in [('price','Cheapest first'),('duration','Fastest first'),('risk','Safest first'),('stops','Fewest stops')] %}
       <a href="/search?{{ query }}&max_stops={{ max_stops }}&sort={{ key }}"
          class="px-3 py-1.5 rounded-full border {{ 'bg-sky-700 text-white border-sky-700' if sort==key else 'bg-white hover:bg-slate-100' }}">{{ label }}</a>
     {% endfor %}
@@ -23,7 +24,7 @@
   <article class="bg-white rounded-xl shadow-sm border border-slate-100 p-5 grid md:grid-cols-[1fr_auto] gap-4">
     <div>
       <div class="flex flex-wrap gap-2 mb-3">
-        {% for t in it.tags %}<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">{{ t }}</span>{% endfor %}
+        {% for t, algo in it.methods %}<span title="found by {{ algo }}" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">{{ t }} <span class="font-normal opacity-70">({{ algo }})</span></span>{% endfor %}
         <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100">{{ 'Direct' if it.stops==0 else it.stops ~ ' stop' ~ ('s' if it.stops>1 else '') }}</span>
         <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100">{{ it.minutes|hm }} total</span>
         {% if it.seats_left <= 8 %}<span class="text-xs px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">Only ~{{ it.seats_left }} seats left</span>{% endif %}

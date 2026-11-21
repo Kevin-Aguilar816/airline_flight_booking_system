@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Passenger scan{% endblock %}
+{% block content %}
+<a href="/desk" class="text-sm text-sky-700 underline">Back to desk</a>
+<h1 class="text-2xl font-bold mt-2 mb-1">Passenger scan</h1>
+<p class="text-sm text-slate-500 mb-4">Hash table lookup by ticket key (BOOKINGREF-SEAT). The key is hashed to a bucket, so we check one short chain instead of every passenger. {{ table.entries }} entries, {{ table.buckets }} buckets, load {{ table.load_factor }}.</p>
+<form class="flex gap-2 mb-3" action="/desk/scan"><input name="key" value="{{ key }}" placeholder="e.g. AB12CD34-5A" class="border rounded-lg px-3 py-2 w-64 uppercase"><button class="bg-sky-700 text-white rounded-lg px-5 py-2 font-semibold">Look up</button></form>
+{% if samples %}<p class="text-xs text-slate-500 mb-4">Try: {% for s in samples %}<a class="underline text-sky-700 mr-2" href="/desk/scan?key={{ s }}">{{ s }}</a>{% endfor %}</p>{% endif %}
+{% if r %}
+  {% if r.found and pax %}
+    <div class="bg-white rounded-xl shadow-sm p-5 text-sm mb-3">
+      <div class="text-lg font-bold">{{ pax.name }}</div>
+      <div>Seat {{ pax.seat_no }} · {{ booking.flight.number }} {{ booking.flight.origin }} → {{ booking.flight.dest }} · {{ booking.flight.depart|dt }}</div>
+      <div class="text-slate-500">Booking {{ booking.ref }} · {{ pax.price|peso }}</div>
+    </div>
+  {% else %}<div class="bg-rose-50 text-rose-800 rounded-xl p-4 text-sm mb-3">No passenger with key {{ key }}.</div>{% endif %}
+  <p class="text-xs text-slate-500">Bucket {{ r.bucket }}, chain length {{ r.chain }}, {{ r.comparisons }} comparison{{ '' if r.comparisons==1 else 's' }}.</p>
+{% endif %}
+{% endblock %}

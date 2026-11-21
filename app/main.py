@@ -11,12 +11,13 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import ml, routing, services
+from . import desk, indexes, ml, routing, services
+from .dsa import quicksort
 from .db import Base, SessionLocal, engine, get_db, utcnow
-from .models import Airport, Booking, Flight, Passenger, Payment, User
+from .models import Airport, Booking, BookingRequest, Flight, Passenger, Payment, User
 from .seed import check_pw, hash_pw, seed
 from .ticket import build_ticket_pdf
 
@@ -28,6 +29,7 @@ async def lifespan(_app):
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         seed(db)
+        indexes.build_all(db)  # BST of flights, hash table of passengers, undo stack
     ml.get_model()  # train / load the price predictor at boot
     yield
 
@@ -74,8 +76,13 @@ def require_admin(user=Depends(require_user)) -> User:
     return user
 
 
+def flash(request: Request, text: str, ok: bool = True):
+    request.session["flash"] = {"text": text, "ok": ok}
+
+
 def page(request: Request, name: str, user, status_code=200, **ctx):
-    return templates.TemplateResponse(request, name, {"user": user, **ctx}, status_code=status_code)
+    note = None if name.startswith("_") else request.session.pop("flash", None)  # not for HTMX fragments
+    return templates.TemplateResponse(request, name, {"user": user, "flash": note, **ctx}, status_code=status_code)
 
 
 def message(request, user, title, text, status_code=200, link=("/", "Back to search")):
@@ -122,10 +129,11 @@ def search(request: Request, origin: str, dest: str, day: str, max_stops: int = 
         it.advice = {"advice": "Wait" if p >= .5 else "Buy Now", "confidence": round(max(p, 1 - p) * 100)}
         it.seats_left = min(f.aircraft.capacity - round(loads[f.id] * f.aircraft.capacity) for f in it.legs)
     keys = {"price": lambda i: (i.price, i.minutes), "duration": lambda i: (i.minutes, i.price),
-            "risk": lambda i: (i.risk_score, i.price)}
-    its.sort(key=keys.get(sort, keys["price"]))
+            "risk": lambda i: (i.risk_score, i.price), "stops": lambda i: (i.stops, i.price)}
+    its, sort_comparisons = quicksort(its, key=keys.get(sort, keys["price"]))  # our own QuickSort
     return page(request, "results.html", user, its=its, o=airports[origin], d=airports[dest], day=d, sort=sort,
-                max_stops=max_stops, query=f"origin={origin}&dest={dest}&day={day}", demand=demand)
+                max_stops=max_stops, query=f"origin={origin}&dest={dest}&day={day}", demand=demand,
+                sort_comparisons=sort_comparisons)
 
 
 # ------------------------------------------------------------ seat select ---
@@ -143,7 +151,8 @@ def flight_page(fid: int, request: Request, db=Depends(get_db), user=Depends(cur
     pred = ml.predict(max((f.depart - datetime.now()).days, 0), loads[f.id], f.depart,
                       f.origin_airport.size + f.dest_airport.size, f.base_price)
     return page(request, "seats.html", user, f=f, sm=services.build_seatmap(db, f, user), msg=None, pred=pred,
-                hold_minutes=services.HOLD_MINUTES)
+                hold_minutes=services.HOLD_MINUTES, tiers=list(desk.TIERS), full=desk.is_full(db, f),
+                waiting=len(desk.waitlist_deque(db, f.id)))
 
 
 def _panel(request, db, f, user, msg=None, ok=False):
@@ -316,7 +325,7 @@ def admin(request: Request, db=Depends(get_db), user=Depends(require_admin)):
     rev_rows = db.execute(select(func.date(Booking.created_at), func.sum(Booking.total_amount))
                           .where(confirmed, Booking.created_at >= since).group_by(func.date(Booking.created_at))
                           .order_by(func.date(Booking.created_at))).all()
-    route = (Flight.origin + "-" + Flight.dest)
+    route = (Flight.origin + literal_column("'-'") + Flight.dest)
     pop = db.execute(select(route, func.count(Passenger.id)).join(Flight, Flight.id == Passenger.flight_id)
                      .group_by(route).order_by(func.count(Passenger.id).desc()).limit(8)).all()
     # load factor per route = passengers / seats offered on flights that have passengers
@@ -339,6 +348,183 @@ def admin(request: Request, db=Depends(get_db), user=Depends(require_admin)):
               "pop": {"labels": [r for r, _ in pop], "data": [c for _, c in pop]},
               "lf": {"labels": [r for r, _ in lf], "data": [v for _, v in lf]}}
     return page(request, "admin.html", user, kpis=kpis, charts=json.dumps(charts), ml=ml.metrics)
+
+
+# =============================================================================
+# Data-structure features: flight-number search (BST), priority requests (heap),
+# waitlist (deque), undo (stack), passenger scanner (hash table),
+# manifest (linked list). Logic lives in desk.py / indexes.py / dsa.py.
+# =============================================================================
+@app.get("/find", response_class=HTMLResponse)
+def find_flight(request: Request, number: str = "", db=Depends(get_db), user=Depends(current_user)):
+    result = indexes.find_flight(number) if number.strip() else None
+    flight = db.get(Flight, result["value"]) if result and result["found"] else None
+    return page(request, "find.html", user, number=number.strip().upper(), r=result, f=flight,
+                stats=indexes.tree_stats())
+
+
+@app.post("/flights/{fid}/request")
+def priority_request(fid: int, request: Request, tier: str = Form(...), seats: int = Form(1),
+                     db=Depends(get_db), user=Depends(require_user)):
+    try:
+        desk.submit_request(db, user, _flight(db, fid), tier, seats)
+        flash(request, "Request sent to the booking desk. VIP is served first, then Business, then Economy.")
+    except desk.DeskError as e:
+        flash(request, str(e), ok=False)
+        return RedirectResponse(f"/flights/{fid}", 303)
+    return RedirectResponse("/requests", 303)
+
+
+@app.post("/flights/{fid}/waitlist")
+def waitlist_join(fid: int, request: Request, tier: str = Form(...), seats: int = Form(1),
+                  db=Depends(get_db), user=Depends(require_user)):
+    try:
+        desk.join_waitlist(db, user, _flight(db, fid), tier, seats)
+        flash(request, "You joined the waitlist. If seats free up you are offered them first-come, first-served.")
+    except desk.DeskError as e:
+        flash(request, str(e), ok=False)
+        return RedirectResponse(f"/flights/{fid}", 303)
+    return RedirectResponse("/requests", 303)
+
+
+@app.get("/requests", response_class=HTMLResponse)
+def my_requests(request: Request, db=Depends(get_db), user=Depends(require_user)):
+    desk.expire_offers(db)
+    rows = db.scalars(select(BookingRequest).where(BookingRequest.user_id == user.id)
+                      .order_by(BookingRequest.id.desc()).limit(50)).unique().all()
+    refs = {r.id: db.get(Booking, r.booking_id).ref for r in rows if r.booking_id}
+    pos = {r.id: desk.waitlist_position(db, r) for r in rows if r.status == "waitlisted"}
+    return page(request, "requests.html", user, rows=rows, refs=refs, pos=pos)
+
+
+@app.post("/requests/{rid}/cancel")
+def request_cancel(rid: int, request: Request, db=Depends(get_db), user=Depends(require_user)):
+    req = db.get(BookingRequest, rid)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    try:
+        desk.cancel_request(db, req, user)
+        flash(request, "Request withdrawn.")
+    except desk.DeskError as e:
+        flash(request, str(e), ok=False)
+    return RedirectResponse("/requests", 303)
+
+
+# ------------------------------------------------------------- agent desk ---
+@app.get("/desk", response_class=HTMLResponse)
+def desk_page(request: Request, db=Depends(get_db), user=Depends(require_admin)):
+    desk.expire_offers(db)
+    heap = desk.queued_heap(db)
+    undo_ids = indexes.undo_stack.top_first(8)
+    undo = []
+    for bid in undo_ids:
+        b = db.get(Booking, bid)
+        if b:
+            undo.append({"b": b, "seats": sorted(p.seat_no for p in b.passengers)})
+    return page(request, "desk.html", user, queue=heap.in_priority_order(), heap_array=heap.array(),
+                undo=undo, undo_size=len(indexes.undo_stack), waitlists=desk.all_waitlists(db),
+                tree=indexes.tree_stats(), table=indexes.table_stats(), tiers=desk.TIERS)
+
+
+@app.post("/desk/process-next")
+def desk_process_next(request: Request, db=Depends(get_db), user=Depends(require_admin)):
+    r = desk.process_next(db)
+    if not r:
+        flash(request, "The priority queue is empty.", ok=False)
+    elif r["action"] == "allocated":
+        flash(request, f"Processed {r['request'].tier} request #{r['request'].id} ({r['request'].user.name}): "
+                       f"seats {', '.join(sorted(r['seats']))} held for them.")
+    else:
+        flash(request, f"Request #{r['request'].id} ({r['request'].tier}) had no seats: moved to the waitlist.", ok=False)
+    return RedirectResponse("/desk", 303)
+
+
+@app.post("/desk/process-all")
+def desk_process_all(request: Request, db=Depends(get_db), user=Depends(require_admin)):
+    order = []
+    while len(order) < 100:
+        r = desk.process_next(db)
+        if not r:
+            break
+        order.append(f"#{r['request'].id} {r['request'].tier} ({'seats' if r['action'] == 'allocated' else 'waitlisted'})")
+    flash(request, "Processed in priority order: " + (", ".join(order) if order else "nothing queued."), ok=bool(order))
+    return RedirectResponse("/desk", 303)
+
+
+def _undo_message(res: dict, prefix: str) -> str:
+    text = f"{prefix} booking {res['booking'].ref} (seats {', '.join(res['seats'])}) cancelled and refunded."
+    if res["promoted"]:
+        text += " Waitlist promoted from the front: " + ", ".join(
+            f"{r.user.name} ({r.seats} seat{'s' if r.seats > 1 else ''})" for r in res["promoted"]) + "."
+    else:
+        text += " No one on the waitlist was ready for those seats."
+    return text
+
+
+@app.post("/desk/undo")
+def desk_undo(request: Request, db=Depends(get_db), user=Depends(require_admin)):
+    try:
+        flash(request, _undo_message(desk.undo_last_booking(db), "Undo: most recent"))
+    except desk.DeskError as e:
+        flash(request, str(e), ok=False)
+    return RedirectResponse("/desk", 303)
+
+
+@app.post("/desk/fill")
+def desk_fill(request: Request, number: str = Form(...), db=Depends(get_db), user=Depends(require_admin)):
+    hit = indexes.find_flight(number)
+    if not hit["found"]:
+        flash(request, f"No flight {number.upper()}.", ok=False)
+    else:
+        try:
+            n = desk.fill_flight(db, _flight(db, hit["value"]), user)
+            flash(request, f"Flight {number.upper()} filled for the demo ({n} seats sold). It can now take waitlist joins.")
+        except desk.DeskError as e:
+            flash(request, str(e), ok=False)
+    return RedirectResponse("/desk", 303)
+
+
+@app.get("/desk/manifest-find")
+def desk_manifest_find(request: Request, number: str = "", user=Depends(require_admin)):
+    hit = indexes.find_flight(number)
+    if not hit["found"]:
+        flash(request, f"No flight {number.strip().upper()}.", ok=False)
+        return RedirectResponse("/desk", 303)
+    return RedirectResponse(f"/desk/flights/{hit['value']}/manifest", 303)
+
+
+@app.get("/desk/flights/{fid}/manifest", response_class=HTMLResponse)
+def desk_manifest(fid: int, request: Request, db=Depends(get_db), user=Depends(require_admin)):
+    f = _flight(db, fid)
+    return page(request, "manifest.html", user, f=f, chain=desk.manifest(db, fid).to_list(),
+                waiting=len(desk.waitlist_deque(db, fid)))
+
+
+@app.post("/desk/flights/{fid}/manifest/{bid}/cancel")
+def desk_manifest_cancel(fid: int, bid: int, request: Request, db=Depends(get_db), user=Depends(require_admin)):
+    try:
+        res = desk.cancel_from_manifest(db, fid, bid)
+        d = res["detached"]
+        link = f"Detached {d['value']['ref']} from the chain: {d['before']['ref'] if d['before'] else 'HEAD'} now points to " \
+               f"{d['after']['ref'] if d['after'] else 'END'}. "
+        flash(request, link + _undo_message(res, "Cancelled"))
+    except desk.DeskError as e:
+        flash(request, str(e), ok=False)
+    return RedirectResponse(f"/desk/flights/{fid}/manifest", 303)
+
+
+@app.get("/desk/scan", response_class=HTMLResponse)
+def desk_scan(request: Request, key: str = "", db=Depends(get_db), user=Depends(require_admin)):
+    r = indexes.find_passenger(key) if key.strip() else None
+    pax = db.get(Passenger, r["value"]) if r and r["found"] else None
+    booking = db.get(Booking, pax.booking_id) if pax else None
+    samples = []
+    for bid in indexes.undo_stack.top_first(4):
+        b = db.get(Booking, bid)
+        if b and b.status == "confirmed":
+            samples += [indexes.ticket_key(b.ref, p.seat_no) for p in b.passengers[:2]]
+    return page(request, "scan.html", user, key=key.strip().upper(), r=r, pax=pax, booking=booking,
+                table=indexes.table_stats(), samples=samples[:4], ticket_key=indexes.ticket_key)
 
 
 # ---------------------------------------------------------------- JSON API --

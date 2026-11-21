@@ -17,7 +17,7 @@ Continuing to pop yields the next-best alternatives.
 import hashlib
 import heapq
 import itertools
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -94,6 +94,11 @@ class Itinerary:
         return "Low" if s < 25 else "Medium" if s < 45 else "High"
 
     @property
+    def methods(self) -> list:
+        """Which algorithm earned each tag (shown on the results page)."""
+        return [(t, "BFS" if t == "Fewest stops" else "Dijkstra") for t in self.tags]
+
+    @property
     def key(self) -> tuple:
         return tuple(f.id for f in self.legs)
 
@@ -147,6 +152,30 @@ def _dijkstra(by_origin, origin, dest, day, objective, price_of, airports, max_l
     return results
 
 
+def bfs_fewest_stops(by_origin, origin, dest, day, max_legs, limit=12):
+    """Breadth-first search over the same flight graph, one LEVEL per number of
+    legs. Level 1 = direct flights, level 2 = one stop, and so on, so the first
+    level that reaches the destination has the FEWEST STOPS. BFS ignores prices,
+    which is why it finds fewest stops while Dijkstra finds cheapest/fastest.
+    Time O(V + E) per level; stops at the first successful level."""
+    frontier = deque((f,) for f in by_origin[origin] if f.depart.date() == day)
+    for _level in range(1, max_legs + 1):
+        hits = [p for p in frontier if p[-1].dest == dest]
+        if hits:
+            return hits[:limit]
+        if _level == max_legs:
+            break
+        nxt = deque()
+        for path in frontier:
+            last, seen = path[-1], {p.origin for p in path}
+            for g in by_origin[last.dest]:
+                gap = int((g.depart - last.arrive).total_seconds() // 60)
+                if MIN_LAYOVER <= gap <= MAX_LAYOVER and g.dest not in seen:
+                    nxt.append(path + (g,))
+        frontier = nxt
+    return []
+
+
 def find_itineraries(flights, airports, origin, dest, day, price_of,
                      max_stops=1, per_objective=6) -> list[Itinerary]:
     """Return de-duplicated itineraries tagged Cheapest / Fastest / Safest."""
@@ -163,6 +192,14 @@ def find_itineraries(flights, airports, origin, dest, day, price_of,
             found.setdefault(it.key, it)
         if paths:
             best_by[tag] = found[tuple(f.id for f in paths[0])]
+    # BFS: fewest stops (cheapest among the itineraries with the fewest legs)
+    bfs_paths = bfs_fewest_stops(by_origin, origin, dest, day, max_stops + 1)
+    if bfs_paths:
+        built = []
+        for p in bfs_paths:
+            it = _build(p, price_of, airports)
+            built.append(found.setdefault(it.key, it))
+        best_by["Fewest stops"] = min(built, key=lambda i: (i.price, i.minutes))
     for tag, it in best_by.items():
         if tag not in it.tags:
             it.tags.append(tag)

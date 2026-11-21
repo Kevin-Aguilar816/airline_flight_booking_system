@@ -60,7 +60,14 @@ def build_ticket_pdf(booking) -> bytes:
         c.setFillColor(colors.grey)
         c.drawString(40, H - 415, "Gate closes 20 minutes before departure. Sandbox ticket generated for demonstration only.")
 
-        widget = qr.QrCodeWidget(f"FIO|{booking.ref}|{f.number}|{p.seat_no}|{p.name}")
+        key = f"{booking.ref}-{p.seat_no}".upper()
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(40, H - 445, f"TICKET KEY:  {key}")
+        c.setFont("Helvetica", 9)
+        c.setFillColor(colors.grey)
+        c.drawString(40, H - 462, "Agents scan or type this key to look the passenger up instantly.")
+        widget = qr.QrCodeWidget(f"FIO|{booking.ref}|{f.number}|{p.seat_no}|{p.name}|{key}")
         x0, y0, x1, y1 = widget.getBounds()
         size = 130
         d = Drawing(size, size, transform=[size / (x1 - x0), 0, 0, size / (y1 - y0), 0, 0])

@@ -129,3 +129,29 @@ class Payment(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     booking: Mapped[Booking] = relationship(back_populates="payments", lazy="joined")
+
+
+class BookingRequest(Base):
+    """A traveler's request to the booking desk, also used as the waitlist.
+
+    status flow:
+      queued      -> in the priority heap, waiting for an agent
+      waitlisted  -> in the flight's FIFO deque (flight was full)
+      allocated   -> seats were held for the traveler; they finish checkout
+      expired     -> the allocated hold ran out before payment
+      cancelled   -> withdrawn by the traveler
+    """
+    __tablename__ = "booking_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    flight_id: Mapped[int] = mapped_column(ForeignKey("flights.id"), index=True)
+    tier: Mapped[str] = mapped_column(String(10), default="Economy")  # VIP | Business | Economy
+    seats: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(12), default="queued", index=True)
+    booking_id: Mapped[int | None] = mapped_column(ForeignKey("bookings.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    waitlisted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    note: Mapped[str] = mapped_column(String(160), default="")
+
+    user: Mapped[User] = relationship(lazy="joined")
+    flight: Mapped[Flight] = relationship(lazy="joined")

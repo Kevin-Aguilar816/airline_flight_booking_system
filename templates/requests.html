@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}My requests{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">My requests</h1>
+<p class="text-sm text-slate-500 mb-5">Priority requests and waitlist places. When the desk allocates seats they are held for you; finish checkout before the hold ends.</p>
+{% if not rows %}<p class="text-slate-500">Nothing yet. Open a flight and use "Ask the booking desk" or the waitlist.</p>{% endif %}
+<div class="space-y-3">
+{% for r in rows %}
+  <div class="bg-white rounded-xl shadow-sm p-4 flex flex-wrap items-center gap-3 text-sm">
+    <b>#{{ r.id }}</b>
+    <span>{{ r.flight.number }} · {{ r.flight.origin }} → {{ r.flight.dest }} · {{ r.flight.depart|dt }}</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-violet-100 text-violet-800">{{ r.tier }}</span>
+    <span>{{ r.seats }} seat{{ '' if r.seats==1 else 's' }}</span>
+    <span class="px-2 py-0.5 rounded-full text-xs {{ {'queued':'bg-amber-100 text-amber-800','waitlisted':'bg-slate-200 text-slate-700','allocated':'bg-emerald-100 text-emerald-800','booked':'bg-emerald-100 text-emerald-800'}.get(r.status,'bg-rose-100 text-rose-800') }}">{{ r.status }}</span>
+    {% if r.status=='waitlisted' and pos.get(r.id) %}<span class="text-slate-600">place <b>{{ pos[r.id] }}</b> in line</span>{% endif %}
+    <span class="text-slate-500">{{ r.note }}</span>
+    <span class="ml-auto flex gap-2">
+      {% if r.status=='allocated' and refs.get(r.id) %}<a href="/bookings/{{ refs[r.id] }}/checkout" class="bg-sky-700 text-white rounded-lg px-3 py-1.5 font-semibold">Go to checkout</a>{% endif %}
+      {% if r.status in ('queued','waitlisted') %}<form method="post" action="/requests/{{ r.id }}/cancel"><button class="border rounded-lg px-3 py-1.5 hover:bg-slate-100">Withdraw</button></form>{% endif %}
+    </span>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

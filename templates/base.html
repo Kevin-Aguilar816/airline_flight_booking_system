@@ -13,7 +13,10 @@
     <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
       <a href="/" class="text-xl font-bold tracking-tight">Flight In, Flight Out</a>
       <a href="/" class="text-sky-100 hover:text-white text-sm">Search flights</a>
-      {% if user %}<a href="/bookings" class="text-sky-100 hover:text-white text-sm">My bookings</a>{% endif %}
+      <a href="/find" class="text-sky-100 hover:text-white text-sm">Find by flight no.</a>
+      {% if user %}<a href="/bookings" class="text-sky-100 hover:text-white text-sm">My bookings</a>
+      <a href="/requests" class="text-sky-100 hover:text-white text-sm">My requests</a>{% endif %}
+      {% if user and user.is_admin %}<a href="/desk" class="text-sky-100 hover:text-white text-sm">Booking desk</a>{% endif %}
       {% if user and user.is_admin %}<a href="/admin" class="text-sky-100 hover:text-white text-sm">Admin dashboard</a>{% endif %}
       <a href="/docs" class="text-sky-100 hover:text-white text-sm">API docs</a>
       <span class="ml-auto text-sm">
@@ -22,7 +25,9 @@
       </span>
     </nav>
   </header>
-  <main class="max-w-6xl mx-auto w-full px-4 py-8 flex-1">{% block content %}{% endblock %}</main>
+  <main class="max-w-6xl mx-auto w-full px-4 py-8 flex-1">
+    {% if flash %}<div class="mb-5 rounded-lg px-4 py-3 text-sm {{ 'bg-emerald-50 text-emerald-800 border border-emerald-200' if flash.ok else 'bg-rose-50 text-rose-800 border border-rose-200' }}">{{ flash.text }}</div>{% endif %}
+    {% block content %}{% endblock %}</main>
   <footer class="text-center text-xs text-slate-400 py-6">Flight In, Flight Out capstone demo · sandbox payments only — no real charges</footer>
 </body>
 </html>

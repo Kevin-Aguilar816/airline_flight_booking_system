@@ -127,7 +127,7 @@ def _drop_unpaid_payments(db, booking: Booking):
     db.execute(delete(Payment).where(Payment.booking_id == booking.id))
 
 
-def hold_seat(db, flight: Flight, seat: str, user) -> SeatLock:
+def hold_seat(db, flight: Flight, seat: str, user, minutes: int | None = None) -> SeatLock:
     """Atomically hold a seat for HOLD_MINUTES.
 
     Safety argument: the INSERT into seat_locks is protected by
@@ -157,7 +157,7 @@ def hold_seat(db, flight: Flight, seat: str, user) -> SeatLock:
     load = loads_for(db, [flight])[flight.id]
     price = int(round(dynamic_fare(flight, load) * seat_multiplier(flight.aircraft, int(seat[:-1])) / 10) * 10)
     lock = SeatLock(flight_id=flight.id, seat_no=seat, booking_id=booking.id, price=price,
-                    expires_at=now + timedelta(minutes=HOLD_MINUTES))
+                    expires_at=now + timedelta(minutes=minutes or HOLD_MINUTES))
     db.add(lock)
     try:
         db.commit()
@@ -243,7 +243,7 @@ def _expire_and_refund(db, booking_id: int) -> str:
 def finalize_if_paid(db, booking_id: int) -> str:
     """When the LAST group member pays, convert holds into passengers in one
     transaction. FOR UPDATE serialises concurrent finalisers on PostgreSQL."""
-    b = db.execute(select(Booking).where(Booking.id == booking_id).with_for_update()).scalar_one()
+    b = db.execute(select(Booking).where(Booking.id == booking_id).with_for_update(of=Booking)).scalar_one()
     if b.status != "pending":
         db.rollback()
         return b.status
@@ -265,4 +265,6 @@ def finalize_if_paid(db, booking_id: int) -> str:
     except IntegrityError:  # seat somehow already sold -> refund everyone
         db.rollback()
         return _expire_and_refund(db, booking_id)
+    from . import indexes          # local import: indexes only depends on models and dsa
+    indexes.on_confirmed(db, b)
     return "confirmed"

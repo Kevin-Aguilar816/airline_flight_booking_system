@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Booking desk{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Booking desk</h1>
+<p class="text-sm text-slate-500 mb-6">Agent tools built on data structures: priority queue, waitlists, undo stack, flight manifest, passenger scan.</p>
+
+<div class="grid lg:grid-cols-2 gap-6">
+  <section class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold mb-1">Priority queue (max-heap)</h2>
+    <p class="text-xs text-slate-500 mb-3">VIP &gt; Business &gt; Economy; same tier: earliest request first.</p>
+    {% if queue %}
+      <ol class="text-sm divide-y mb-3">
+        {% for r in queue %}<li class="py-2 flex gap-2"><b>{{ loop.index }}.</b> <span class="px-2 rounded-full text-xs bg-violet-100 text-violet-800">{{ r.tier }}</span> #{{ r.id }} {{ r.user.name }} · {{ r.flight.number }} · {{ r.seats }} seat{{ '' if r.seats==1 else 's' }}</li>{% endfor %}
+      </ol>
+      <details class="text-xs text-slate-500 mb-3"><summary>Heap array (what is stored in memory)</summary>{{ heap_array }}</details>
+      <div class="flex gap-2">
+        <form method="post" action="/desk/process-next"><button class="bg-sky-700 text-white rounded-lg px-4 py-2 text-sm font-semibold">Process next</button></form>
+        <form method="post" action="/desk/process-all"><button class="border rounded-lg px-4 py-2 text-sm hover:bg-slate-100">Process all</button></form>
+      </div>
+    {% else %}<p class="text-sm text-slate-500">Queue is empty.</p>{% endif %}
+  </section>
+
+  <section class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold mb-1">Undo stack (LIFO) · {{ undo_size }} bookings</h2>
+    <p class="text-xs text-slate-500 mb-3">Most recent confirmed booking is on top. Undo cancels it, refunds it and offers the seats to the waitlist.</p>
+    {% if undo %}
+      <ul class="text-sm divide-y mb-3">
+        {% for u in undo %}<li class="py-2">{% if loop.first %}<span class="text-xs bg-amber-100 text-amber-800 rounded px-1.5 mr-1">TOP</span>{% endif %}<b>{{ u.b.ref }}</b> · {{ u.b.flight.number }} · seats {{ u.seats|join(', ') }} · {{ u.b.total_amount|peso }}</li>{% endfor %}
+      </ul>
+      <form method="post" action="/desk/undo"><button class="bg-rose-700 text-white rounded-lg px-4 py-2 text-sm font-semibold">Undo last booking</button></form>
+    {% else %}<p class="text-sm text-slate-500">Nothing to undo yet. Confirm a booking first.</p>{% endif %}
+  </section>
+
+  <section class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold mb-3">Waitlists (deque, first in first out)</h2>
+    {% for w in waitlists %}
+      <div class="mb-3 text-sm"><b>{{ w.flight.number }}</b> {{ w.flight.origin }} → {{ w.flight.dest }}
+        <div class="flex flex-wrap items-center gap-1 mt-1"><span class="text-xs text-slate-400">FRONT</span>
+        {% for r in w.line %}<span class="px-2 py-0.5 rounded bg-slate-100">{{ r.user.name }} ({{ r.seats }})</span>{% if not loop.last %}<span class="text-slate-400">→</span>{% endif %}{% endfor %}
+        <span class="text-xs text-slate-400">BACK</span></div></div>
+    {% else %}<p class="text-sm text-slate-500 mb-3">No waitlists. Make one by filling a flight:</p>{% endfor %}
+    <form method="post" action="/desk/fill" class="flex gap-2 items-center text-sm">
+      <input name="number" placeholder="Flight no." class="border rounded px-2 py-1.5 w-28 uppercase">
+      <button class="border rounded-lg px-3 py-1.5 hover:bg-slate-100">Fill flight (demo)</button>
+    </form>
+  </section>
+
+  <section class="bg-white rounded-xl shadow-sm p-5 text-sm space-y-4">
+    <div>
+      <h2 class="font-semibold mb-1">Flight manifest (linked list)</h2>
+      <form action="/desk/manifest-find" class="flex gap-2"><input name="number" placeholder="Flight no." class="border rounded px-2 py-1.5 w-28 uppercase"><button class="border rounded-lg px-3 py-1.5 hover:bg-slate-100">Open manifest</button></form>
+    </div>
+    <div>
+      <h2 class="font-semibold mb-1">Passenger scan (hash table)</h2>
+      <p class="text-slate-500">{{ table.entries }} passengers in {{ table.buckets }} buckets, load {{ table.load_factor }}, longest chain {{ table.longest_chain }}.</p>
+      <a href="/desk/scan" class="text-sky-700 underline">Open scanner</a>
+    </div>
+    <div><h2 class="font-semibold mb-1">Flight index (BST)</h2><p class="text-slate-500">{{ tree.flights }} flights, height {{ tree.height }}. <a href="/find" class="text-sky-700 underline">Search by number</a></p></div>
+  </section>
+</div>
+{% endblock %}

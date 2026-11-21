@@ -6,7 +6,7 @@ import random
 import secrets
 from datetime import datetime, timedelta
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, text
 
 from .models import (Aircraft, Airport, Booking, Flight, Passenger, Payment, User)
 from .services import LETTERS, seat_class, seat_ids, seat_multiplier
@@ -113,3 +113,7 @@ def seed(db, history_days_back=7, history_days_fwd=7, days_ahead=45):
         for k in range(0, len(chunk_src), 5000):
             db.execute(insert(model), chunk_src[k:k + 5000])
     db.commit()
+    if db.get_bind().dialect.name == 'postgresql':  # explicit ids don't advance the serial sequences
+        for tbl in ('bookings', 'passengers', 'payments'):
+            db.execute(text(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1))"))
+        db.commit()

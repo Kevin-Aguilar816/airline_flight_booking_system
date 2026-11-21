@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Find by flight number{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Find a flight by number</h1>
+<p class="text-sm text-slate-500 mb-5">Searches a binary search tree of {{ stats.flights }} flights (height {{ stats.height }}): at most {{ stats.height }} comparisons instead of scanning every flight.</p>
+<form class="flex gap-2 mb-6" action="/find">
+  <input name="number" value="{{ number }}" placeholder="e.g. SB101" class="border rounded-lg px-3 py-2 w-48 uppercase" autofocus>
+  <button class="bg-sky-700 text-white rounded-lg px-5 py-2 font-semibold">Search</button>
+</form>
+{% if r %}
+  {% if r.found and f %}
+    <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+      <div class="text-xs text-slate-500">{{ f.number }} · {{ f.aircraft.model }}</div>
+      <div class="text-xl font-bold">{{ f.origin_airport.city }} ({{ f.origin }}) → {{ f.dest_airport.city }} ({{ f.dest }})</div>
+      <div class="text-sm text-slate-600 mb-3">{{ f.depart|dt }} → {{ f.arrive|tm }} · {{ f.minutes|hm }}</div>
+      <a href="/flights/{{ f.id }}" class="inline-block bg-sky-700 text-white rounded-lg px-4 py-2 text-sm font-semibold">Select seats</a>
+    </div>
+  {% else %}
+    <div class="bg-rose-50 text-rose-800 rounded-xl p-4 mb-4 text-sm">No flight {{ number }}.
+      {% if r.below or r.above %}Nearest numbers in the tree: {{ r.below or '-' }} and {{ r.above or '-' }}.{% endif %}</div>
+  {% endif %}
+  <div class="bg-white rounded-xl shadow-sm p-5 text-sm">
+    <b>{{ r.comparisons }} comparison{{ '' if r.comparisons==1 else 's' }}.</b> Path walked from the root:
+    <div class="flex flex-wrap items-center gap-1 mt-2">
+      {% for k in r.path %}<span class="px-2 py-0.5 rounded {{ 'bg-emerald-100 text-emerald-800 font-semibold' if loop.last and r.found else 'bg-slate-100' }}">{{ k }}</span>{% if not loop.last %}<span class="text-slate-400">→</span>{% endif %}{% endfor %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

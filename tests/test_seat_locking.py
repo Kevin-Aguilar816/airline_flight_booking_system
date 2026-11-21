@@ -22,11 +22,11 @@ from app.seed import hash_pw, seed  # noqa: E402
 def world():
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
-        seed(db, history_days_back=1, history_days_fwd=1, days_ahead=3)
+        seed(db, history_days_back=1, history_days_fwd=1, days_ahead=12)
         users = [User(email=f"u{i}@t.io", name=f"U{i}", pw_hash=hash_pw("x")) for i in range(25)]
         db.add_all(users)
         db.commit()
-        flight = db.scalars(select(Flight).where(Flight.depart > datetime.now() + timedelta(days=2))).unique().first()
+        flight = db.scalars(select(Flight).where(Flight.depart > datetime.now() + timedelta(days=10))).unique().first()
         return [u.id for u in users], flight.id
 
 
